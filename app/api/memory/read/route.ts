@@ -3,7 +3,7 @@ import { readdir, readFile, stat } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 
-const WORKSPACE_DIR = join(homedir(), ".openclaw", "workspace");
+const WORKSPACE_DIR = join(homedir(), "clawd");
 
 export async function GET() {
   try {
@@ -32,12 +32,16 @@ export async function GET() {
         })
     );
 
+    // Priority order for sorting: core identity files first, then by date
+    const priority = ["SOUL.md", "IDENTITY.md", "HEARTBEAT.md", "AGENTS.md", "USER.md", "TOOLS.md", "BOOTSTRAP.md"];
     const validFiles = files
       .filter(Boolean)
       .sort((a, b) => {
-        // MEMORY.md first, then by date descending
-        if (a!.name === "MEMORY.md") return -1;
-        if (b!.name === "MEMORY.md") return 1;
+        const aIdx = priority.indexOf(a!.name);
+        const bIdx = priority.indexOf(b!.name);
+        if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+        if (aIdx !== -1) return -1;
+        if (bIdx !== -1) return 1;
         return b!.lastModified.localeCompare(a!.lastModified);
       });
 

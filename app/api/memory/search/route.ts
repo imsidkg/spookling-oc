@@ -6,7 +6,7 @@ import { join } from "path";
 import { homedir } from "os";
 
 const execAsync = promisify(exec);
-const WORKSPACE_DIR = join(homedir(), ".openclaw", "workspace");
+const WORKSPACE_DIR = join(homedir(), "clawd");
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -23,8 +23,8 @@ export async function GET(request: Request) {
     // Try using openclaw memory search CLI first
     try {
       const { stdout } = await execAsync(
-        `openclaw memory search "${query.replace(/"/g, '\\"')}"`,
-        { timeout: 10000 }
+        `bunx openclaw@latest memory search "${query.replace(/"/g, '\\"')}"`,
+        { timeout: 15000 }
       );
 
       const results = stdout

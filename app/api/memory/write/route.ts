@@ -3,7 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 
-const WORKSPACE_DIR = join(homedir(), ".openclaw", "workspace");
+const WORKSPACE_DIR = join(homedir(), "clawd");
 
 export async function POST(request: Request) {
   try {

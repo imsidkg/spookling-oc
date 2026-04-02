@@ -4,7 +4,7 @@ import { exec } from "child_process";
 export async function POST() {
   try {
     // Start openclaw gateway in background
-    exec("openclaw gateway start", {
+    exec("bunx openclaw@latest gateway --port 18789 --allow-unconfigured --force", {
       env: { ...process.env },
       timeout: 10000,
     });

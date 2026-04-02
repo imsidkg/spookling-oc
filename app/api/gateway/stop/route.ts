@@ -8,7 +8,7 @@ export async function POST() {
   try {
     // Try openclaw gateway stop first
     try {
-      await execAsync("openclaw gateway stop", { timeout: 5000 });
+      await execAsync("bunx openclaw@latest gateway stop", { timeout: 5000 });
     } catch {
       // If openclaw command fails, try to kill the process on the port
       try {

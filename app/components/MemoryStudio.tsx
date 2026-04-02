@@ -49,12 +49,11 @@ export function MemoryStudio() {
         setFiles(data.files);
         // Auto-select MEMORY.md if nothing selected
         if (!selectedFile && data.files.length > 0) {
-          const memoryMd = data.files.find(
-            (f: MemoryFile) => f.name === "MEMORY.md"
-          );
-          if (memoryMd) {
-            setSelectedFile(memoryMd);
-            setEditContent(memoryMd.content);
+          // Auto-select first priority file (SOUL.md, IDENTITY.md, etc.)
+          const autoSelect = data.files[0];
+          if (autoSelect) {
+            setSelectedFile(autoSelect);
+            setEditContent(autoSelect.content);
           }
         }
       }
