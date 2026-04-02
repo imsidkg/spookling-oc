@@ -1,0 +1,5 @@
+[run]
+# Use the system shell for package.json scripts.
+# This avoids sandbox-specific `kill EACCES` failures when Bun manages the child process tree.
+shell = "system"
+
