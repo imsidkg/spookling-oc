@@ -1,70 +1,86 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
 @theme {
-  --color-background: #0a0a0f;
-  --color-foreground: #e4e4e7;
-  --color-card: #131320;
-  --color-card-foreground: #e4e4e7;
-  --color-popover: #131320;
-  --color-popover-foreground: #e4e4e7;
-  --color-primary: #10b981;
-  --color-primary-foreground: #022c22;
-  --color-secondary: #1e1e2e;
-  --color-secondary-foreground: #e4e4e7;
-  --color-muted: #1a1a2e;
-  --color-muted-foreground: #a1a1aa;
-  --color-accent: #10b981;
-  --color-accent-foreground: #022c22;
-  --color-destructive: #ef4444;
-  --color-destructive-foreground: #fef2f2;
-  --color-border: #27272a;
-  --color-input: #27272a;
-  --color-ring: #10b981;
-  --radius: 0.625rem;
-  --color-sidebar: #0d0d18;
-  --color-sidebar-foreground: #e4e4e7;
-  --color-sidebar-border: #1e1e2e;
+  --color-background: #131313;
+  --color-foreground: #e2e2e2;
+  --color-surface: #131313;
+  --color-surface-dim: #131313;
+  --color-surface-bright: #393939;
+  --color-surface-container: #1f1f1f;
+  --color-surface-container-low: #1b1b1b;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-surface-container-high: #2a2a2a;
+  --color-surface-container-highest: #353535;
+  --color-primary: #74e5bd;
+  --color-on-primary: #003829;
+  --color-primary-container: #56c9a2;
+  --color-secondary: #a5d0bd;
+  --color-on-secondary: #0d372a;
+  --color-secondary-container: #264e3f;
+  --color-tertiary: #ffc3b5;
+  --color-on-tertiary: #5a1b0c;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-on-surface: #e2e2e2;
+  --color-on-surface-variant: #bccac2;
+  --color-outline: #87948d;
+  --color-outline-variant: #3d4944;
+  --color-inverse-surface: #e2e2e2;
+  --color-inverse-on-surface: #303030;
+  --color-border: #3d4944;
+  --color-card: #1f1f1f;
+  --color-muted-foreground: #87948d;
+  --radius: 0.125rem;
 }
 
 body {
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
   background: var(--color-background);
-  color: var(--color-foreground);
-  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--color-on-surface);
+}
+
+::selection {
+  background: rgb(116 229 189 / 0.3);
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 3px;
+  background: #3d4944;
+  border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: #87948d;
 }
 
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* Markdown content */
-.markdown-body h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
-.markdown-body h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+.markdown-body h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.025em; }
+.markdown-body h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; letter-spacing: -0.025em; }
 .markdown-body h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
-.markdown-body p { margin-bottom: 0.5rem; line-height: 1.6; }
+.markdown-body p { margin-bottom: 0.5rem; line-height: 1.6; opacity: 0.8; }
 .markdown-body code {
-  background: #1e1e2e;
+  background: #0e0e0e;
   padding: 0.125rem 0.375rem;
-  border-radius: 0.25rem;
+  border-radius: 0;
   font-size: 0.875rem;
 }
 .markdown-body pre {
-  background: #1e1e2e;
+  background: #0e0e0e;
   padding: 0.75rem;
-  border-radius: 0.5rem;
+  border-radius: 0;
   overflow-x: auto;
   margin-bottom: 0.75rem;
+  border-left: 2px solid #74e5bd;
 }
 .markdown-body pre code {
   background: transparent;
@@ -76,11 +92,12 @@ body {
 }
 .markdown-body li { margin-bottom: 0.25rem; }
 .markdown-body blockquote {
-  border-left: 3px solid #10b981;
+  border-left: 2px solid #74e5bd;
   padding-left: 0.75rem;
-  color: #a1a1aa;
+  color: #bccac2;
   margin-bottom: 0.5rem;
 }
+.markdown-body strong { color: #74e5bd; }
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
@@ -88,4 +105,12 @@ body {
 }
 .animate-pulse-dot {
   animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes scan-line {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.animate-scan {
+  animation: scan-line 2s ease-in-out infinite;
 }

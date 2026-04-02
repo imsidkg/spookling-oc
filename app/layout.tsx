@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "OpenClaw Dashboard",
+  title: "OpenClaw | Dashboard",
   description: "Full-stack dashboard for the OpenClaw AI agent framework",
 };
 
@@ -13,7 +13,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased bg-background text-on-surface">
+        {children}
+      </body>
     </html>
   );
 }

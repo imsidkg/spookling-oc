@@ -6,7 +6,9 @@
       "Bash(openclaw --version)",
       "Bash(bunx openclaw@latest --help)",
       "Bash(bunx openclaw@latest:*)",
-      "Bash(curl -s http://localhost:3000/api/memory/read)"
+      "Bash(curl -s http://localhost:3000/api/memory/read)",
+      "Bash(npx next:*)",
+      "Bash(curl -s http://localhost:3000)"
     ]
   }
 }

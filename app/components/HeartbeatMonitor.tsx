@@ -5,10 +5,9 @@ import {
   Activity,
   Heart,
   Clock,
-  Cpu,
   HardDrive,
-  Zap,
   AlertTriangle,
+  Zap,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -32,7 +31,6 @@ export function HeartbeatMonitor({ gatewayStatus }: HeartbeatMonitorProps) {
     flushCount: 0,
     sessionId: "N/A",
     agentStatus: gatewayStatus,
-    uptime: "0s",
   });
 
   const pollHeartbeats = useCallback(async () => {
@@ -58,7 +56,6 @@ export function HeartbeatMonitor({ gatewayStatus }: HeartbeatMonitorProps) {
         heartbeatCount: prev.heartbeatCount + 1,
         sessionId: data.sessionId || data.pid?.toString() || "N/A",
         agentStatus: data.status || gatewayStatus,
-        uptime: data.uptime || `${prev.heartbeatCount * 5}s`,
       }));
     } catch {
       setEvents((prev) =>
@@ -81,7 +78,6 @@ export function HeartbeatMonitor({ gatewayStatus }: HeartbeatMonitorProps) {
     return () => clearInterval(interval);
   }, [pollHeartbeats]);
 
-  // Detect memory flushes by watching file changes
   useEffect(() => {
     if (gatewayStatus !== "online") return;
 
@@ -90,11 +86,13 @@ export function HeartbeatMonitor({ gatewayStatus }: HeartbeatMonitorProps) {
         const res = await fetch("/api/memory/read");
         const data = await res.json();
         if (data.files) {
-          const recentlyModified = data.files.filter((f: { lastModified: string }) => {
-            const mod = new Date(f.lastModified);
-            const diff = Date.now() - mod.getTime();
-            return diff < 6000; // Modified in last 6 seconds
-          });
+          const recentlyModified = data.files.filter(
+            (f: { lastModified: string }) => {
+              const mod = new Date(f.lastModified);
+              const diff = Date.now() - mod.getTime();
+              return diff < 6000;
+            }
+          );
 
           if (recentlyModified.length > 0) {
             const flushEvent: HeartbeatEvent = {
@@ -111,7 +109,7 @@ export function HeartbeatMonitor({ gatewayStatus }: HeartbeatMonitorProps) {
           }
         }
       } catch {
-        // Silently fail flush checks
+        // Silently fail
       }
     };
 
@@ -122,126 +120,143 @@ export function HeartbeatMonitor({ gatewayStatus }: HeartbeatMonitorProps) {
   const getEventIcon = (type: string) => {
     switch (type) {
       case "heartbeat":
-        return <Heart size={14} className="text-emerald-400" />;
+        return <Heart size={14} className="text-primary" />;
       case "flush":
-        return <HardDrive size={14} className="text-blue-400" />;
+        return <HardDrive size={14} className="text-secondary" />;
       case "error":
-        return <AlertTriangle size={14} className="text-red-400" />;
+        return <AlertTriangle size={14} className="text-error" />;
       default:
-        return <Zap size={14} className="text-yellow-400" />;
+        return <Zap size={14} className="text-tertiary" />;
+    }
+  };
+
+  const getEventBorder = (type: string) => {
+    switch (type) {
+      case "heartbeat":
+        return "border-l-primary";
+      case "flush":
+        return "border-l-secondary";
+      case "error":
+        return "border-l-error";
+      default:
+        return "border-l-tertiary";
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-4 border-b border-border">
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-2">
-            <Heart size={14} />
-            <span className="text-xs font-medium">Last Heartbeat</span>
-          </div>
-          <p className="text-lg font-semibold">
+    <section className="flex-1 flex flex-col p-8 overflow-hidden">
+      {/* Heading */}
+      <div className="mb-8">
+        <h2 className="text-[3.5rem] font-bold leading-none tracking-tight text-on-surface mb-2">
+          Heartbeat Monitor
+        </h2>
+        <div className="h-1 w-24 bg-primary" />
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="bg-surface-container p-6 border-l-2 border-primary">
+          <p className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-primary mb-3">
+            Last Heartbeat
+          </p>
+          <p className="text-xl font-bold">
             {stats.lastHeartbeat
               ? formatDistanceToNow(stats.lastHeartbeat, { addSuffix: true })
               : "—"}
           </p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-2">
-            <Activity size={14} />
-            <span className="text-xs font-medium">Heartbeats</span>
-          </div>
-          <p className="text-lg font-semibold">{stats.heartbeatCount}</p>
+        <div className="bg-surface-container p-6 border-l-2 border-secondary">
+          <p className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-secondary mb-3">
+            Heartbeats
+          </p>
+          <p className="text-xl font-bold">{stats.heartbeatCount}</p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-2">
-            <HardDrive size={14} />
-            <span className="text-xs font-medium">Memory Flushes</span>
-          </div>
-          <p className="text-lg font-semibold">{stats.flushCount}</p>
+        <div className="bg-surface-container p-6 border-l-2 border-tertiary">
+          <p className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-tertiary mb-3">
+            Memory Flushes
+          </p>
+          <p className="text-xl font-bold">{stats.flushCount}</p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-2">
-            <Cpu size={14} />
-            <span className="text-xs font-medium">Session</span>
-          </div>
-          <p className="text-lg font-semibold truncate">{stats.sessionId}</p>
+        <div className="bg-surface-container p-6 border-l-2 border-outline">
+          <p className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-outline mb-3">
+            Session PID
+          </p>
+          <p className="text-xl font-bold truncate">{stats.sessionId}</p>
         </div>
       </div>
 
-      {/* Agent status bar */}
-      <div className="px-4 py-3 border-b border-border bg-card/30 flex items-center justify-between">
+      {/* Status Bar */}
+      <div className="px-6 py-4 border-l-2 border-primary bg-surface-container-low flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div
-            className={`w-3 h-3 rounded-full ${
+          <span
+            className={`w-2.5 h-2.5 rounded-full ${
               gatewayStatus === "online"
-                ? "bg-emerald-500 animate-pulse-dot"
-                : "bg-red-500"
+                ? "bg-primary animate-pulse-dot"
+                : "bg-error"
             }`}
           />
-          <span className="text-sm font-medium">
-            Agent Status:{" "}
+          <span className="text-sm font-bold uppercase tracking-tight">
+            Agent:{" "}
             <span
               className={
-                gatewayStatus === "online"
-                  ? "text-emerald-400"
-                  : "text-red-400"
+                gatewayStatus === "online" ? "text-primary" : "text-error"
               }
             >
               {gatewayStatus === "online" ? "Running" : "Stopped"}
             </span>
           </span>
         </div>
-        <span className="text-xs text-muted-foreground">
-          Polling every 5s
+        <span className="text-xs text-on-surface/30 font-bold uppercase tracking-widest">
+          Polling 5s
         </span>
       </div>
 
-      {/* Event log */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-4 py-2 border-b border-border/50 bg-secondary/30 sticky top-0">
-          <span className="text-xs font-medium text-muted-foreground">
-            Event Log ({events.length} events)
+      {/* Event Log */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="px-4 py-3 bg-surface-container-lowest border-b border-outline-variant/10">
+          <span className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-on-surface/40">
+            Event Log ({events.length})
           </span>
         </div>
-        {events.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <Activity size={32} className="mb-3 opacity-30" />
-            <p className="text-sm">
-              {gatewayStatus === "online"
-                ? "Waiting for heartbeats..."
-                : "Start the Gateway to see heartbeats"}
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border/30">
-            {events.map((event) => (
-              <div
-                key={event.id}
-                className="px-4 py-2.5 flex items-start gap-3 hover:bg-secondary/20 transition-colors"
-              >
-                <div className="mt-0.5">{getEventIcon(event.type)}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm">{event.message}</p>
-                  {event.data && (
-                    <pre className="text-[10px] text-muted-foreground mt-1 overflow-x-auto">
-                      {JSON.stringify(event.data, null, 0)}
-                    </pre>
-                  )}
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          {events.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-on-surface/30">
+              <Activity size={32} className="mb-3 opacity-20" />
+              <p className="text-sm font-bold uppercase tracking-widest">
+                {gatewayStatus === "online"
+                  ? "Waiting for heartbeats..."
+                  : "Start Gateway"}
+              </p>
+            </div>
+          ) : (
+            <div>
+              {events.map((event) => (
+                <div
+                  key={event.id}
+                  className={`px-4 py-3 flex items-start gap-3 border-l-2 ${getEventBorder(event.type)} border-b border-outline-variant/5 hover:bg-surface-container-high/20 transition-colors`}
+                >
+                  <div className="mt-0.5">{getEventIcon(event.type)}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm">{event.message}</p>
+                    {event.data && (
+                      <pre className="text-[10px] text-on-surface/30 mt-1 overflow-x-auto font-mono">
+                        {JSON.stringify(event.data, null, 0)}
+                      </pre>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-on-surface/30 shrink-0">
+                    <Clock size={10} />
+                    {event.timestamp.toLocaleTimeString()}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
-                  <Clock size={10} />
-                  {event.timestamp.toLocaleTimeString()}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

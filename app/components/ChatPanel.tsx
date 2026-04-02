@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Bot, User, AlertCircle } from "lucide-react";
+import { ArrowRight, Bot, User, Info } from "lucide-react";
 import { marked } from "marked";
-import { GatewayBrowserClient, type GatewayEventFrame } from "../lib/openclaw/gatewayBrowserClient";
+import {
+  GatewayBrowserClient,
+  type GatewayEventFrame,
+} from "../lib/openclaw/gatewayBrowserClient";
 
 interface Message {
   id: string;
@@ -16,28 +19,24 @@ interface ChatPanelProps {
   gatewayStatus: "online" | "offline" | "checking";
 }
 
-const createSessionKey = () =>
-  `agent:main:webchat:direct:spookling-${crypto.randomUUID()}`;
-
-const cleanAssistantText = (text: string) =>
-  text.replace(/<\/?final>/gi, "").trim();
-
 export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       role: "system",
-      content:
-        "Connected to OpenClaw Dashboard. Start a conversation with the agent below.",
+      content: "Connected to OpenClaw Dashboard. Start a conversation with the agent below.",
       timestamp: new Date(),
     },
   ]);
   const [input, setInput] = useState("");
   const [gatewayToken, setGatewayToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
   const [connected, setConnected] = useState(false);
   const gwRef = useRef<GatewayBrowserClient | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const sessionKeyRef = useRef<string>(createSessionKey());
+  const sessionKeyRef = useRef<string>(
+    "agent:main:webchat:direct:openclaw-spookling"
+  );
   const runBuffersRef = useRef<Record<string, string>>({});
 
   const scrollToBottom = () => {
@@ -53,7 +52,7 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
       const stored = window.localStorage.getItem("openclaw-gateway-token");
       if (stored) setGatewayToken(stored);
     } catch {
-      // ignore localStorage failures
+      // ignore
     }
   }, []);
 
@@ -101,9 +100,9 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
             const obj = value as Record<string, unknown>;
             const direct =
               (typeof obj.text === "string" && obj.text === "HEARTBEAT_OK") ||
-              (typeof obj.content === "string" && obj.content === "HEARTBEAT_OK");
+              (typeof obj.content === "string" &&
+                obj.content === "HEARTBEAT_OK");
             if (direct) return true;
-
             const content = obj.content;
             if (!Array.isArray(content)) return false;
             return content.some((item) => {
@@ -117,7 +116,6 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
             if (typeof value === "string") return value;
             if (!value || typeof value !== "object") return "";
             const obj = value as Record<string, unknown>;
-
             if (typeof obj.content === "string") return obj.content;
             if (typeof obj.text === "string") return obj.text;
             if (typeof obj.message === "string") return obj.message;
@@ -125,7 +123,6 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
             if (typeof obj.outputText === "string") return obj.outputText;
             if (typeof obj.final === "string") return obj.final;
             if (typeof obj.result === "string") return obj.result;
-
             if (Array.isArray(obj.content)) {
               const textParts = obj.content
                 .map((part) => {
@@ -138,12 +135,9 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
                 .filter(Boolean);
               if (textParts.length > 0) return textParts.join("\n");
             }
-
             return "";
           };
 
-          // Fallback: some OpenClaw builds emit assistant payloads in `agent/chat`
-          // events without {sessionKey,state,message}.
           if (eventName === "agent" || eventName === "chat") {
             const pObj =
               payload && typeof payload === "object"
@@ -169,12 +163,17 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
             const genericError =
               (typeof pObj?.errorMessage === "string" && pObj.errorMessage) ||
               (typeof pObj?.error === "string" && pObj.error) ||
-              (nestedData && typeof nestedData.errorMessage === "string" && nestedData.errorMessage) ||
-              (nestedData && typeof nestedData.error === "string" && nestedData.error) ||
+              (nestedData &&
+                typeof nestedData.errorMessage === "string" &&
+                nestedData.errorMessage) ||
+              (nestedData &&
+                typeof nestedData.error === "string" &&
+                nestedData.error) ||
               "";
 
             if (!genericText && !genericError) return;
-            if (genericText && isHeartbeatArtifact({ text: genericText })) return;
+            if (genericText && isHeartbeatArtifact({ text: genericText }))
+              return;
 
             if (genericState === "delta") {
               if (genericText) {
@@ -197,38 +196,36 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
                 {
                   id: `msg-generic-${Date.now()}`,
                   role: genericState === "error" ? "system" : "assistant",
-                  content: cleanAssistantText(
+                  content:
                     merged ||
                     genericText ||
                     genericError ||
-                    `[agent ${genericState}] no text payload`
-                  ),
+                    `[agent ${genericState}] no text payload`,
                   timestamp: new Date(),
                 },
               ]);
               return;
             }
 
-            // Unknown state: avoid rendering short partial tokens (e.g. "HE").
             if (genericText.trim().length < 8) return;
             setMessages((prev) => [
               ...prev,
               {
                 id: `msg-generic-${Date.now()}`,
                 role: "assistant",
-                content: cleanAssistantText(genericText),
+                content: genericText,
                 timestamp: new Date(),
               },
             ]);
             return;
           }
 
-          // Heuristic: gateway chat events carry { sessionKey, state, message?, errorMessage? }.
           const isChatEvent =
             payload &&
             typeof payload === "object" &&
             "sessionKey" in payload &&
-            typeof (payload as { sessionKey?: unknown }).sessionKey === "string" &&
+            typeof (payload as { sessionKey?: unknown }).sessionKey ===
+              "string" &&
             "state" in payload &&
             typeof (payload as { state?: unknown }).state === "string" &&
             ("message" in payload || "errorMessage" in payload);
@@ -240,8 +237,6 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
             message?: unknown;
             errorMessage?: unknown;
           };
-          // Gateway may normalize/route to a different session key.
-          // Track the first session key we see so replies are not dropped.
           if (p.sessionKey && p.sessionKey !== sessionKeyRef.current) {
             sessionKeyRef.current = p.sessionKey;
             setMessages((prev) => [
@@ -261,7 +256,6 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
           let content = "";
           if (typeof msg === "string") content = msg;
           else if (msg && typeof msg === "object") {
-            // Ignore non-user-facing heartbeat acknowledgement events.
             if (isHeartbeatArtifact(msg)) return;
             const maybeContent = extractText(msg);
             content = maybeContent || JSON.stringify(msg);
@@ -271,12 +265,12 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
             return;
           }
 
-          // We only append on final/error/aborted to avoid spamming on deltas.
-          if (state !== "final" && state !== "error" && state !== "aborted") return;
+          if (state !== "final" && state !== "error" && state !== "aborted")
+            return;
 
           const finalContent =
             content && content.trim()
-              ? cleanAssistantText(content)
+              ? content
               : `[empty assistant payload] state=${state}`;
 
           setMessages((prev) => [
@@ -331,7 +325,6 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
           idempotencyKey: crypto.randomUUID(),
         })
         .then((res) => {
-          // Some gateway versions return final content directly on response.
           if (!res || typeof res !== "object") return;
           const r = res as Record<string, unknown>;
           const direct =
@@ -344,7 +337,7 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
             {
               id: `msg-${Date.now()}`,
               role: "assistant",
-              content: cleanAssistantText(direct),
+              content: direct,
               timestamp: new Date(),
             },
           ]);
@@ -364,16 +357,6 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
             },
           ]);
         });
-    } else {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `err-disconnected-${Date.now()}`,
-          role: "system",
-          content: "Not connected to Gateway. Click Reconnect WebSocket first.",
-          timestamp: new Date(),
-        },
-      ]);
     }
 
     setInput("");
@@ -385,63 +368,24 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
-          >
-            {msg.role !== "user" && (
-              <div
-                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                  msg.role === "assistant"
-                    ? "bg-primary/10 text-primary"
-                    : "bg-secondary text-muted-foreground"
-                }`}
-              >
-                {msg.role === "assistant" ? (
-                  <Bot size={16} />
-                ) : (
-                  <AlertCircle size={16} />
-                )}
-              </div>
-            )}
-            <div
-              className={`max-w-[70%] rounded-xl px-4 py-2.5 ${
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : msg.role === "assistant"
-                    ? "bg-card border border-border"
-                    : "bg-secondary/50 border border-border/50 text-muted-foreground text-sm"
-              }`}
-            >
-              {msg.role === "assistant" ? (
-                <div
-                  className="markdown-body text-sm"
-                  dangerouslySetInnerHTML={renderMarkdown(msg.content)}
-                />
-              ) : (
-                <p className="text-sm">{msg.content}</p>
-              )}
-              <p className="text-[10px] opacity-50 mt-1">
-                {msg.timestamp.toLocaleTimeString()}
-              </p>
-            </div>
-            {msg.role === "user" && (
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-primary/20 text-primary">
-                <User size={16} />
-              </div>
-            )}
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
+    <section className="flex-1 flex flex-col p-8 overflow-hidden">
+      {/* Heading */}
+      <div className="mb-8">
+        <h2 className="text-[3.5rem] font-bold leading-none tracking-tight text-on-surface mb-2">
+          Agent Chat
+        </h2>
+        <div className="h-1 w-24 bg-primary" />
       </div>
 
-      {/* Input */}
-      <div className="border-t border-border p-4">
-        <div className="mb-3">
+      {/* Token input */}
+      <div className="mb-4">
+        <button
+          onClick={() => setShowToken(!showToken)}
+          className="text-xs font-bold uppercase tracking-widest text-on-surface/40 hover:text-primary transition-colors"
+        >
+          {showToken ? "Hide Token" : "Gateway Token"}
+        </button>
+        {showToken && (
           <input
             type="password"
             value={gatewayToken}
@@ -451,44 +395,113 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
               try {
                 window.localStorage.setItem("openclaw-gateway-token", value);
               } catch {
-                // ignore localStorage failures
+                // ignore
               }
             }}
-            placeholder="Gateway token (required if auth is enabled)"
-            className="w-full bg-card border border-border rounded-xl px-4 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            placeholder="Enter gateway token if auth is enabled"
+            className="w-full mt-2 bg-surface-container-lowest border-0 border-l-2 border-outline-variant/30 py-3 pl-4 text-sm focus:ring-0 focus:border-primary placeholder:text-on-surface/20 transition-colors"
           />
-        </div>
-        {!connected && gatewayStatus === "online" && (
-          <button
-            onClick={connectWebSocket}
-            className="w-full mb-3 py-2 rounded-lg bg-primary/10 text-primary text-sm hover:bg-primary/20 transition-colors"
-          >
-            Reconnect WebSocket
-          </button>
         )}
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder={
-              connected
-                ? "Send a message to OpenClaw..."
-                : "Gateway offline — start it to chat"
-            }
-            disabled={!connected}
-            className="flex-1 bg-card border border-border rounded-xl px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-          />
-          <button
-            onClick={sendMessage}
-            disabled={!connected || !input.trim()}
-            className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Send size={16} />
-          </button>
-        </div>
       </div>
-    </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 mb-6 pr-4">
+        {messages.map((msg) => {
+          if (msg.role === "system") {
+            return (
+              <div
+                key={msg.id}
+                className="flex gap-4 p-4 bg-surface-container-high/40"
+              >
+                <Info size={16} className="text-on-surface opacity-40 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-on-surface opacity-40 uppercase tracking-tight mb-1">
+                    System — {msg.timestamp.toLocaleTimeString()}
+                  </p>
+                  <p className="text-sm text-on-surface opacity-60">
+                    {msg.content}
+                  </p>
+                </div>
+              </div>
+            );
+          }
+
+          if (msg.role === "user") {
+            return (
+              <div key={msg.id} className="flex gap-4 justify-end">
+                <div className="max-w-[70%]">
+                  <div className="bg-primary/10 border-r-2 border-primary p-4">
+                    <p className="text-sm text-on-surface">{msg.content}</p>
+                  </div>
+                  <p className="text-[10px] text-on-surface/30 mt-1 text-right">
+                    {msg.timestamp.toLocaleTimeString()}
+                  </p>
+                </div>
+                <div className="w-8 h-8 flex items-center justify-center shrink-0 bg-primary/20">
+                  <User size={14} className="text-primary" />
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div key={msg.id} className="flex gap-4">
+              <div className="w-8 h-8 flex items-center justify-center shrink-0 bg-surface-container border-l-2 border-primary">
+                <Bot size={14} className="text-primary" />
+              </div>
+              <div className="max-w-[70%]">
+                <div className="bg-surface-container-low border-l-2 border-primary p-4">
+                  <div
+                    className="markdown-body text-sm"
+                    dangerouslySetInnerHTML={renderMarkdown(msg.content)}
+                  />
+                </div>
+                <p className="text-[10px] text-on-surface/30 mt-1">
+                  {msg.timestamp.toLocaleTimeString()}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Reconnect */}
+      {!connected && gatewayStatus === "online" && (
+        <button
+          onClick={connectWebSocket}
+          className="w-full mb-4 py-3 border border-primary/20 text-primary text-sm font-bold uppercase tracking-widest hover:bg-primary/10 transition-colors"
+        >
+          Reconnect WebSocket
+        </button>
+      )}
+
+      {/* Input */}
+      <div className="relative mt-auto">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          placeholder={
+            connected
+              ? "Send a message to OpenClaw..."
+              : "Gateway offline — start it to chat"
+          }
+          disabled={!connected}
+          className="w-full bg-surface-container-lowest border-0 py-6 pl-6 pr-20 text-sm focus:ring-0 placeholder:text-on-surface/20 disabled:opacity-30 transition-all focus:bg-surface-bright/20"
+        />
+        <div className="absolute bottom-0 left-0 w-full h-[1px] bg-outline-variant/20 overflow-hidden">
+          <div className="h-full bg-primary w-1/4 animate-scan" />
+        </div>
+        <button
+          onClick={sendMessage}
+          disabled={!connected || !input.trim()}
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-primary hover:bg-primary/10 disabled:opacity-30 transition-colors"
+        >
+          <ArrowRight size={18} />
+        </button>
+      </div>
+    </section>
   );
 }

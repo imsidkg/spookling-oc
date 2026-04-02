@@ -1,25 +1,32 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@radix-ui/react-tabs";
 import {
+  LayoutDashboard,
   MessageSquare,
   Brain,
   Activity,
-  Power,
-  RotateCcw,
-  Square,
+  Settings,
+  Plus,
 } from "lucide-react";
 import { ChatPanel } from "./ChatPanel";
 import { MemoryStudio } from "./MemoryStudio";
 import { HeartbeatMonitor } from "./HeartbeatMonitor";
 import { GatewayControls } from "./GatewayControls";
+import { DashboardOverview } from "./DashboardOverview";
+
+const navItems = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "chat", label: "Chat", icon: MessageSquare },
+  { id: "memory", label: "Memory Studio", icon: Brain },
+  { id: "heartbeats", label: "Heartbeats", icon: Activity },
+] as const;
 
 export function Dashboard() {
   const [gatewayStatus, setGatewayStatus] = useState<
     "online" | "offline" | "checking"
   >("checking");
-  const [activeTab, setActiveTab] = useState("chat");
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   const checkGatewayStatus = useCallback(async () => {
     try {
@@ -38,118 +45,102 @@ export function Dashboard() {
   }, [checkGatewayStatus]);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-background">
       {/* Sidebar */}
-      <aside className="w-64 shrink-0 border-r border-border bg-sidebar flex flex-col">
-        <div className="p-5 border-b border-sidebar-border">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <span className="text-2xl">&#x1F99E;</span>
-            <span className="text-primary">OpenClaw</span>
+      <aside className="fixed left-0 top-0 h-full flex flex-col py-8 px-4 w-64 bg-background z-50">
+        <div className="mb-12 px-4">
+          <h1 className="text-2xl font-black text-primary tracking-tighter uppercase">
+            OpenClaw
           </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Full-Stack Dashboard
+          <p className="text-[10px] font-bold text-on-surface opacity-40 tracking-[0.2em] mt-1">
+            V0.1.2
           </p>
         </div>
 
-        {/* Gateway status */}
-        <div className="p-4 border-b border-sidebar-border">
-          <div className="flex items-center gap-2 mb-3">
-            <div
-              className={`w-2.5 h-2.5 rounded-full ${
+        <nav className="flex-1 space-y-2">
+          {navItems.map((item) => {
+            const isActive = activeTab === item.id;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 font-bold text-lg uppercase tracking-tight transition-all duration-200 active:scale-[0.98] ${
+                  isActive
+                    ? "text-primary border-l-2 border-primary bg-surface-container"
+                    : "text-on-surface opacity-60 hover:bg-surface-bright hover:opacity-100"
+                }`}
+              >
+                <Icon size={20} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto px-4">
+          <button className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-4 font-bold text-sm tracking-widest uppercase hover:opacity-90 transition-opacity">
+            <Plus size={16} />
+            New Session
+          </button>
+        </div>
+      </aside>
+
+      {/* Top Bar */}
+      <header className="fixed top-0 right-0 flex justify-between items-center pl-72 pr-8 h-20 bg-surface-container-lowest/60 backdrop-blur-xl border-b border-outline-variant/15 z-40 w-full">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-3 py-1 bg-surface-container rounded-full">
+            <span
+              className={`w-2 h-2 rounded-full ${
                 gatewayStatus === "online"
-                  ? "bg-emerald-500 animate-pulse-dot"
+                  ? "bg-primary animate-pulse"
                   : gatewayStatus === "checking"
-                    ? "bg-yellow-500 animate-pulse-dot"
-                    : "bg-red-500"
+                    ? "bg-yellow-500 animate-pulse"
+                    : "bg-error"
               }`}
             />
-            <span className="text-sm font-medium">
+            <span
+              className={`text-[10px] font-bold tracking-widest uppercase ${
+                gatewayStatus === "online"
+                  ? "text-primary"
+                  : gatewayStatus === "checking"
+                    ? "text-yellow-500"
+                    : "text-error"
+              }`}
+            >
               Gateway{" "}
               {gatewayStatus === "online"
                 ? "Online"
                 : gatewayStatus === "checking"
-                  ? "Checking..."
+                  ? "Checking"
                   : "Offline"}
             </span>
           </div>
+        </div>
+
+        <div className="flex items-center gap-6">
           <GatewayControls
             status={gatewayStatus}
             onStatusChange={checkGatewayStatus}
           />
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 p-3">
-          <button
-            onClick={() => setActiveTab("chat")}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-              activeTab === "chat"
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-            }`}
-          >
-            <MessageSquare size={18} />
-            Chat
-          </button>
-          <button
-            onClick={() => setActiveTab("memory")}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors mt-1 ${
-              activeTab === "memory"
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-            }`}
-          >
-            <Brain size={18} />
-            Memory Studio
-          </button>
-          <button
-            onClick={() => setActiveTab("heartbeats")}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors mt-1 ${
-              activeTab === "heartbeats"
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-            }`}
-          >
-            <Activity size={18} />
-            Heartbeats
-          </button>
-        </nav>
-
-        <div className="p-4 border-t border-sidebar-border">
-          <p className="text-xs text-muted-foreground">
-            Built for Spookling application
-          </p>
-          <p className="text-xs text-muted-foreground mt-0.5">v1.0.0 MVP</p>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 border-b border-border flex items-center px-6 justify-between shrink-0">
-          <h2 className="font-semibold capitalize">
-            {activeTab === "chat"
-              ? "Chat with OpenClaw Agent"
-              : activeTab === "memory"
-                ? "Memory Studio"
-                : "Heartbeat Monitor"}
-          </h2>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>ws://127.0.0.1:18789</span>
-            <div
-              className={`w-2 h-2 rounded-full ${
-                gatewayStatus === "online" ? "bg-emerald-500" : "bg-red-500"
-              }`}
-            />
+          <div className="flex items-center gap-4 border-l border-outline-variant/20 pl-6">
+            <button className="text-on-surface opacity-60 hover:text-primary transition-colors">
+              <Settings size={20} />
+            </button>
           </div>
-        </header>
-
-        <div className="flex-1 overflow-hidden">
-          {activeTab === "chat" && <ChatPanel gatewayStatus={gatewayStatus} />}
-          {activeTab === "memory" && <MemoryStudio />}
-          {activeTab === "heartbeats" && (
-            <HeartbeatMonitor gatewayStatus={gatewayStatus} />
-          )}
         </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="ml-64 pt-20 flex-1 flex overflow-hidden">
+        {activeTab === "dashboard" && (
+          <DashboardOverview gatewayStatus={gatewayStatus} />
+        )}
+        {activeTab === "chat" && <ChatPanel gatewayStatus={gatewayStatus} />}
+        {activeTab === "memory" && <MemoryStudio />}
+        {activeTab === "heartbeats" && (
+          <HeartbeatMonitor gatewayStatus={gatewayStatus} />
+        )}
       </main>
     </div>
   );

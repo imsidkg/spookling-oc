@@ -47,9 +47,7 @@ export function MemoryStudio() {
       const data = await res.json();
       if (data.files) {
         setFiles(data.files);
-        // Auto-select MEMORY.md if nothing selected
         if (!selectedFile && data.files.length > 0) {
-          // Auto-select first priority file (SOUL.md, IDENTITY.md, etc.)
           const autoSelect = data.files[0];
           if (autoSelect) {
             setSelectedFile(autoSelect);
@@ -67,7 +65,6 @@ export function MemoryStudio() {
 
   useEffect(() => {
     loadFiles();
-    // Poll for changes (simulating chokidar on client side)
     const interval = setInterval(loadFiles, 3000);
     return () => clearInterval(interval);
   }, [loadFiles]);
@@ -120,11 +117,11 @@ export function MemoryStudio() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex-1 flex overflow-hidden">
       {/* File list sidebar */}
-      <div className="w-72 border-r border-border flex flex-col shrink-0">
+      <div className="w-72 border-r border-outline-variant/10 flex flex-col shrink-0 bg-surface-container-lowest">
         {/* Search */}
-        <div className="p-3 border-b border-border">
+        <div className="p-4 border-b border-outline-variant/10">
           <div className="flex gap-2">
             <input
               type="text"
@@ -132,12 +129,12 @@ export function MemoryStudio() {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && searchMemory()}
               placeholder="Search memory..."
-              className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="flex-1 bg-surface-container border-0 border-l-2 border-outline-variant/20 py-2 pl-3 text-sm focus:ring-0 focus:border-primary placeholder:text-on-surface/20"
             />
             <button
               onClick={searchMemory}
               disabled={searching}
-              className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              className="p-2 text-primary hover:bg-primary/10 transition-colors"
             >
               {searching ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -150,19 +147,19 @@ export function MemoryStudio() {
 
         {/* Search results */}
         {searchResults.length > 0 && (
-          <div className="border-b border-border max-h-48 overflow-y-auto">
-            <div className="px-3 py-2 text-xs font-medium text-muted-foreground bg-secondary/50">
-              Search Results ({searchResults.length})
+          <div className="border-b border-outline-variant/10 max-h-48 overflow-y-auto">
+            <div className="px-4 py-2 text-[0.65rem] font-black uppercase tracking-[0.2em] text-primary bg-surface-container">
+              Results ({searchResults.length})
             </div>
             {searchResults.map((result, i) => (
               <div
                 key={i}
-                className="px-3 py-2 border-b border-border/50 hover:bg-secondary/50 cursor-pointer"
+                className="px-4 py-3 border-b border-outline-variant/5 hover:bg-surface-container cursor-pointer transition-colors"
               >
-                <p className="text-xs font-medium text-primary">
+                <p className="text-xs font-bold text-primary">
                   {result.file}:{result.line}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                <p className="text-xs text-on-surface/40 mt-0.5 line-clamp-2">
                   {result.context}
                 </p>
               </div>
@@ -171,26 +168,29 @@ export function MemoryStudio() {
         )}
 
         {/* Files */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
-            <span className="text-xs font-medium text-muted-foreground">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/10">
+            <span className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-on-surface/40">
               Workspace Files
             </span>
             <button
               onClick={loadFiles}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-on-surface/40 hover:text-primary transition-colors"
             >
               <RefreshCw size={12} />
             </button>
           </div>
           {loading ? (
             <div className="flex items-center justify-center p-8">
-              <Loader2 size={20} className="animate-spin text-muted-foreground" />
+              <Loader2
+                size={20}
+                className="animate-spin text-on-surface/40"
+              />
             </div>
           ) : files.length === 0 ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              <p>No memory files found.</p>
-              <p className="mt-1 text-xs">
+            <div className="p-6 text-center">
+              <p className="text-sm text-on-surface/40">No memory files.</p>
+              <p className="text-xs text-on-surface/20 mt-1">
                 Start OpenClaw to generate workspace files.
               </p>
             </div>
@@ -199,19 +199,19 @@ export function MemoryStudio() {
               <button
                 key={file.name}
                 onClick={() => selectFile(file)}
-                className={`w-full text-left px-3 py-2.5 border-b border-border/30 transition-colors ${
+                className={`w-full text-left px-4 py-3 border-b border-outline-variant/5 transition-colors ${
                   selectedFile?.name === file.name
-                    ? "bg-primary/5 border-l-2 border-l-primary"
-                    : "hover:bg-secondary/50"
+                    ? "bg-surface-container border-l-2 border-l-primary text-primary"
+                    : "hover:bg-surface-container-high/40 text-on-surface"
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <FileText size={14} className="text-primary shrink-0" />
-                  <span className="text-sm font-medium truncate">
+                  <span className="text-sm font-bold truncate">
                     {file.name}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground ml-5">
+                <div className="flex items-center gap-1 mt-1 text-[10px] text-on-surface/30 ml-5">
                   <Clock size={10} />
                   {formatDistanceToNow(new Date(file.lastModified), {
                     addSuffix: true,
@@ -225,8 +225,8 @@ export function MemoryStudio() {
           )}
         </div>
 
-        <div className="p-2 border-t border-border text-[10px] text-muted-foreground text-center">
-          Last refresh: {lastRefresh.toLocaleTimeString()}
+        <div className="p-3 border-t border-outline-variant/10 text-[10px] text-on-surface/20 text-center">
+          Refresh: {lastRefresh.toLocaleTimeString()}
         </div>
       </div>
 
@@ -234,11 +234,11 @@ export function MemoryStudio() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {selectedFile ? (
           <>
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between px-6 py-3 border-b border-outline-variant/10 bg-surface-container-lowest">
+              <div className="flex items-center gap-3">
                 <FileText size={16} className="text-primary" />
-                <span className="text-sm font-medium">{selectedFile.name}</span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-sm font-bold">{selectedFile.name}</span>
+                <span className="text-xs text-on-surface/30">
                   {formatDistanceToNow(new Date(selectedFile.lastModified), {
                     addSuffix: true,
                   })}
@@ -249,7 +249,7 @@ export function MemoryStudio() {
                   onClick={() =>
                     setViewMode(viewMode === "edit" ? "preview" : "edit")
                   }
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-secondary hover:bg-secondary/80 transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-1.5 border border-outline-variant/20 text-xs font-bold uppercase tracking-wide hover:border-primary/50 hover:text-primary transition-colors"
                 >
                   {viewMode === "edit" ? (
                     <>
@@ -265,7 +265,7 @@ export function MemoryStudio() {
                   <button
                     onClick={saveFile}
                     disabled={saving}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wide hover:opacity-90 disabled:opacity-50 transition-all"
                   >
                     {saving ? (
                       <Loader2 size={12} className="animate-spin" />
@@ -277,61 +277,33 @@ export function MemoryStudio() {
                 )}
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto no-scrollbar">
               {viewMode === "edit" ? (
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full h-full p-4 bg-transparent text-sm font-mono resize-none focus:outline-none"
+                  className="w-full h-full p-6 bg-transparent text-sm font-mono resize-none focus:outline-none border-0 focus:ring-0"
                   spellCheck={false}
                 />
               ) : (
                 <div
-                  className="p-6 markdown-body text-sm"
-                  dangerouslySetInnerHTML={renderMarkdown(
-                    selectedFile.content
-                  )}
+                  className="p-8 markdown-body text-sm"
+                  dangerouslySetInnerHTML={renderMarkdown(selectedFile.content)}
                 />
               )}
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <div className="flex-1 flex items-center justify-center text-on-surface/30">
             <div className="text-center">
-              <Brain size={48} className="mx-auto mb-4 opacity-30" />
-              <p className="text-sm">Select a memory file to view</p>
+              <FileText size={48} className="mx-auto mb-4 opacity-20" />
+              <p className="text-sm font-bold uppercase tracking-widest">
+                Select a file
+              </p>
             </div>
           </div>
         )}
       </div>
     </div>
-  );
-}
-
-function Brain(props: React.SVGProps<SVGSVGElement> & { size?: number }) {
-  const { size = 24, ...rest } = props;
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...rest}
-    >
-      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
-      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
-      <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
-      <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
-      <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
-      <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
-      <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
-      <path d="M6 18a4 4 0 0 1-1.967-.516" />
-      <path d="M19.967 17.484A4 4 0 0 1 18 18" />
-    </svg>
   );
 }
