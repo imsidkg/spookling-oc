@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Bot, User, AlertCircle } from "lucide-react";
 import { marked } from "marked";
+import { GatewayBrowserClient, type GatewayEventFrame } from "../lib/openclaw/gatewayBrowserClient";
 
 interface Message {
   id: string;
@@ -26,9 +27,11 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
     },
   ]);
   const [input, setInput] = useState("");
+  const [gatewayToken, setGatewayToken] = useState("");
   const [connected, setConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const gwRef = useRef<GatewayBrowserClient | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sessionKeyRef = useRef<string>("agent:main:webchat:direct:openclaw-spookling");
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -38,70 +41,139 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("openclaw-gateway-token");
+      if (stored) setGatewayToken(stored);
+    } catch {
+      // ignore localStorage failures
+    }
+  }, []);
+
   const connectWebSocket = useCallback(() => {
     if (gatewayStatus !== "online") return;
 
     try {
-      const ws = new WebSocket("ws://127.0.0.1:18789");
+      const gw = new GatewayBrowserClient({
+        url: "ws://127.0.0.1:18789",
+        token: gatewayToken.trim() || undefined,
+        onHello: () => {
+          setConnected(true);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `sys-${Date.now()}`,
+              role: "system",
+              content: "Connected to OpenClaw Gateway.",
+              timestamp: new Date(),
+            },
+          ]);
+        },
+        onConnectError: (err) => {
+          const msg =
+            err && typeof err === "object"
+              ? JSON.stringify(err)
+              : String(err ?? "Unknown connect error");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `err-${Date.now()}`,
+              role: "system",
+              content: `Gateway connect failed: ${msg}`,
+              timestamp: new Date(),
+            },
+          ]);
+        },
+        onEvent: (evt: GatewayEventFrame) => {
+          const payload: unknown = evt.payload;
 
-      ws.onopen = () => {
-        setConnected(true);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `sys-${Date.now()}`,
-            role: "system",
-            content: "WebSocket connected to OpenClaw Gateway.",
-            timestamp: new Date(),
-          },
-        ]);
-      };
+          // Heuristic: gateway chat events carry { sessionKey, state, message?, errorMessage? }.
+          const isChatEvent =
+            payload &&
+            typeof payload === "object" &&
+            "sessionKey" in payload &&
+            typeof (payload as { sessionKey?: unknown }).sessionKey === "string" &&
+            "state" in payload &&
+            typeof (payload as { state?: unknown }).state === "string" &&
+            ("message" in payload || "errorMessage" in payload);
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const content =
-            data.content || data.message || data.text || JSON.stringify(data);
+          if (!isChatEvent) return;
+          const p = payload as {
+            sessionKey: string;
+            state: string;
+            message?: unknown;
+            errorMessage?: unknown;
+          };
+          if (p.sessionKey !== sessionKeyRef.current) return;
+
+          const state = p.state;
+          const msg = p.message;
+
+          const isHeartbeatArtifact = (value: unknown): boolean => {
+            if (!value || typeof value !== "object") return false;
+            const obj = value as Record<string, unknown>;
+            const direct =
+              (typeof obj.text === "string" && obj.text === "HEARTBEAT_OK") ||
+              (typeof obj.content === "string" && obj.content === "HEARTBEAT_OK");
+            if (direct) return true;
+
+            const content = obj.content;
+            if (!Array.isArray(content)) return false;
+            return content.some((item) => {
+              if (!item || typeof item !== "object") return false;
+              const rec = item as Record<string, unknown>;
+              return rec.type === "text" && rec.text === "HEARTBEAT_OK";
+            });
+          };
+
+          let content = "";
+          if (typeof msg === "string") content = msg;
+          else if (msg && typeof msg === "object") {
+            // Ignore non-user-facing heartbeat acknowledgement events.
+            if (isHeartbeatArtifact(msg)) return;
+            const m = msg as Record<string, unknown>;
+            const maybeContent =
+              (typeof m.content === "string" && m.content) ||
+              (typeof m.text === "string" && m.text) ||
+              (typeof m.message === "string" && m.message) ||
+              (typeof m.delta === "string" && m.delta) ||
+              "";
+            content = maybeContent || JSON.stringify(m);
+          } else if (typeof p.errorMessage === "string" && p.errorMessage) {
+            content = p.errorMessage;
+          } else {
+            return;
+          }
+
+          // We only append on final/error/aborted to avoid spamming on deltas.
+          if (state !== "final" && state !== "error" && state !== "aborted") return;
+
           setMessages((prev) => [
             ...prev,
             {
               id: `msg-${Date.now()}`,
-              role: "assistant",
+              role: state === "error" ? "system" : "assistant",
               content,
               timestamp: new Date(),
             },
           ]);
-        } catch {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `msg-${Date.now()}`,
-              role: "assistant",
-              content: event.data,
-              timestamp: new Date(),
-            },
-          ]);
-        }
-      };
+        },
+        onClose: () => {
+          setConnected(false);
+        },
+      });
 
-      ws.onclose = () => {
-        setConnected(false);
-      };
-
-      ws.onerror = () => {
-        setConnected(false);
-      };
-
-      wsRef.current = ws;
+      gwRef.current = gw;
+      gw.start();
     } catch {
       setConnected(false);
     }
-  }, [gatewayStatus]);
+  }, [gatewayStatus, gatewayToken]);
 
   useEffect(() => {
     connectWebSocket();
     return () => {
-      wsRef.current?.close();
+      gwRef.current?.stop();
     };
   }, [connectWebSocket]);
 
@@ -119,10 +191,13 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
       },
     ]);
 
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({ type: "user_message", content: trimmed })
-      );
+    const gw = gwRef.current;
+    if (gw?.connected) {
+      void gw.request("chat.send", {
+        sessionKey: sessionKeyRef.current,
+        message: trimmed,
+        idempotencyKey: crypto.randomUUID(),
+      });
     }
 
     setInput("");
@@ -190,6 +265,23 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
 
       {/* Input */}
       <div className="border-t border-border p-4">
+        <div className="mb-3">
+          <input
+            type="password"
+            value={gatewayToken}
+            onChange={(e) => {
+              const value = e.target.value;
+              setGatewayToken(value);
+              try {
+                window.localStorage.setItem("openclaw-gateway-token", value);
+              } catch {
+                // ignore localStorage failures
+              }
+            }}
+            placeholder="Gateway token (required if auth is enabled)"
+            className="w-full bg-card border border-border rounded-xl px-4 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+        </div>
         {!connected && gatewayStatus === "online" && (
           <button
             onClick={connectWebSocket}
