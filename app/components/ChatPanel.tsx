@@ -16,6 +16,12 @@ interface ChatPanelProps {
   gatewayStatus: "online" | "offline" | "checking";
 }
 
+const createSessionKey = () =>
+  `agent:main:webchat:direct:spookling-${crypto.randomUUID()}`;
+
+const cleanAssistantText = (text: string) =>
+  text.replace(/<\/?final>/gi, "").trim();
+
 export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -31,7 +37,8 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
   const [connected, setConnected] = useState(false);
   const gwRef = useRef<GatewayBrowserClient | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const sessionKeyRef = useRef<string>("agent:main:webchat:direct:openclaw-spookling");
+  const sessionKeyRef = useRef<string>(createSessionKey());
+  const runBuffersRef = useRef<Record<string, string>>({});
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -86,28 +93,8 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
         },
         onEvent: (evt: GatewayEventFrame) => {
           const payload: unknown = evt.payload;
-
-          // Heuristic: gateway chat events carry { sessionKey, state, message?, errorMessage? }.
-          const isChatEvent =
-            payload &&
-            typeof payload === "object" &&
-            "sessionKey" in payload &&
-            typeof (payload as { sessionKey?: unknown }).sessionKey === "string" &&
-            "state" in payload &&
-            typeof (payload as { state?: unknown }).state === "string" &&
-            ("message" in payload || "errorMessage" in payload);
-
-          if (!isChatEvent) return;
-          const p = payload as {
-            sessionKey: string;
-            state: string;
-            message?: unknown;
-            errorMessage?: unknown;
-          };
-          if (p.sessionKey !== sessionKeyRef.current) return;
-
-          const state = p.state;
-          const msg = p.message;
+          const eventName =
+            typeof evt.event === "string" ? evt.event.toLowerCase() : "";
 
           const isHeartbeatArtifact = (value: unknown): boolean => {
             if (!value || typeof value !== "object") return false;
@@ -126,19 +113,158 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
             });
           };
 
+          const extractText = (value: unknown): string => {
+            if (typeof value === "string") return value;
+            if (!value || typeof value !== "object") return "";
+            const obj = value as Record<string, unknown>;
+
+            if (typeof obj.content === "string") return obj.content;
+            if (typeof obj.text === "string") return obj.text;
+            if (typeof obj.message === "string") return obj.message;
+            if (typeof obj.delta === "string") return obj.delta;
+            if (typeof obj.outputText === "string") return obj.outputText;
+            if (typeof obj.final === "string") return obj.final;
+            if (typeof obj.result === "string") return obj.result;
+
+            if (Array.isArray(obj.content)) {
+              const textParts = obj.content
+                .map((part) => {
+                  if (!part || typeof part !== "object") return "";
+                  const rec = part as Record<string, unknown>;
+                  return rec.type === "text" && typeof rec.text === "string"
+                    ? rec.text
+                    : "";
+                })
+                .filter(Boolean);
+              if (textParts.length > 0) return textParts.join("\n");
+            }
+
+            return "";
+          };
+
+          // Fallback: some OpenClaw builds emit assistant payloads in `agent/chat`
+          // events without {sessionKey,state,message}.
+          if (eventName === "agent" || eventName === "chat") {
+            const pObj =
+              payload && typeof payload === "object"
+                ? (payload as Record<string, unknown>)
+                : null;
+            const nestedData =
+              pObj?.data && typeof pObj.data === "object"
+                ? (pObj.data as Record<string, unknown>)
+                : null;
+            const genericState =
+              (typeof pObj?.state === "string" && pObj.state) ||
+              (typeof nestedData?.state === "string" && nestedData.state) ||
+              "";
+            const genericRunId =
+              (typeof pObj?.runId === "string" && pObj.runId) ||
+              (typeof nestedData?.runId === "string" && nestedData.runId) ||
+              `anon-${Date.now()}`;
+            const genericText =
+              extractText(payload) ||
+              extractText(pObj?.message) ||
+              extractText(pObj?.payload) ||
+              extractText(pObj?.data);
+            const genericError =
+              (typeof pObj?.errorMessage === "string" && pObj.errorMessage) ||
+              (typeof pObj?.error === "string" && pObj.error) ||
+              (nestedData && typeof nestedData.errorMessage === "string" && nestedData.errorMessage) ||
+              (nestedData && typeof nestedData.error === "string" && nestedData.error) ||
+              "";
+
+            if (!genericText && !genericError) return;
+            if (genericText && isHeartbeatArtifact({ text: genericText })) return;
+
+            if (genericState === "delta") {
+              if (genericText) {
+                runBuffersRef.current[genericRunId] =
+                  (runBuffersRef.current[genericRunId] || "") + genericText;
+              }
+              return;
+            }
+
+            if (
+              genericState === "final" ||
+              genericState === "error" ||
+              genericState === "aborted"
+            ) {
+              const buffered = runBuffersRef.current[genericRunId] || "";
+              const merged = (buffered + (genericText || "")).trim();
+              delete runBuffersRef.current[genericRunId];
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `msg-generic-${Date.now()}`,
+                  role: genericState === "error" ? "system" : "assistant",
+                  content: cleanAssistantText(
+                    merged ||
+                    genericText ||
+                    genericError ||
+                    `[agent ${genericState}] no text payload`
+                  ),
+                  timestamp: new Date(),
+                },
+              ]);
+              return;
+            }
+
+            // Unknown state: avoid rendering short partial tokens (e.g. "HE").
+            if (genericText.trim().length < 8) return;
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `msg-generic-${Date.now()}`,
+                role: "assistant",
+                content: cleanAssistantText(genericText),
+                timestamp: new Date(),
+              },
+            ]);
+            return;
+          }
+
+          // Heuristic: gateway chat events carry { sessionKey, state, message?, errorMessage? }.
+          const isChatEvent =
+            payload &&
+            typeof payload === "object" &&
+            "sessionKey" in payload &&
+            typeof (payload as { sessionKey?: unknown }).sessionKey === "string" &&
+            "state" in payload &&
+            typeof (payload as { state?: unknown }).state === "string" &&
+            ("message" in payload || "errorMessage" in payload);
+
+          if (!isChatEvent) return;
+          const p = payload as {
+            sessionKey: string;
+            state: string;
+            message?: unknown;
+            errorMessage?: unknown;
+          };
+          // Gateway may normalize/route to a different session key.
+          // Track the first session key we see so replies are not dropped.
+          if (p.sessionKey && p.sessionKey !== sessionKeyRef.current) {
+            sessionKeyRef.current = p.sessionKey;
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `sys-session-${Date.now()}`,
+                role: "system",
+                content: `Session switched: ${p.sessionKey}`,
+                timestamp: new Date(),
+              },
+            ]);
+          }
+
+          const state = p.state;
+          const msg = p.message;
+
           let content = "";
           if (typeof msg === "string") content = msg;
           else if (msg && typeof msg === "object") {
             // Ignore non-user-facing heartbeat acknowledgement events.
             if (isHeartbeatArtifact(msg)) return;
-            const m = msg as Record<string, unknown>;
-            const maybeContent =
-              (typeof m.content === "string" && m.content) ||
-              (typeof m.text === "string" && m.text) ||
-              (typeof m.message === "string" && m.message) ||
-              (typeof m.delta === "string" && m.delta) ||
-              "";
-            content = maybeContent || JSON.stringify(m);
+            const maybeContent = extractText(msg);
+            content = maybeContent || JSON.stringify(msg);
           } else if (typeof p.errorMessage === "string" && p.errorMessage) {
             content = p.errorMessage;
           } else {
@@ -148,12 +274,17 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
           // We only append on final/error/aborted to avoid spamming on deltas.
           if (state !== "final" && state !== "error" && state !== "aborted") return;
 
+          const finalContent =
+            content && content.trim()
+              ? cleanAssistantText(content)
+              : `[empty assistant payload] state=${state}`;
+
           setMessages((prev) => [
             ...prev,
             {
               id: `msg-${Date.now()}`,
               role: state === "error" ? "system" : "assistant",
-              content,
+              content: finalContent,
               timestamp: new Date(),
             },
           ]);
@@ -193,11 +324,56 @@ export function ChatPanel({ gatewayStatus }: ChatPanelProps) {
 
     const gw = gwRef.current;
     if (gw?.connected) {
-      void gw.request("chat.send", {
-        sessionKey: sessionKeyRef.current,
-        message: trimmed,
-        idempotencyKey: crypto.randomUUID(),
-      });
+      void gw
+        .request("chat.send", {
+          sessionKey: sessionKeyRef.current,
+          message: trimmed,
+          idempotencyKey: crypto.randomUUID(),
+        })
+        .then((res) => {
+          // Some gateway versions return final content directly on response.
+          if (!res || typeof res !== "object") return;
+          const r = res as Record<string, unknown>;
+          const direct =
+            (typeof r.content === "string" && r.content) ||
+            (typeof r.text === "string" && r.text) ||
+            (typeof r.message === "string" && r.message);
+          if (!direct) return;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `msg-${Date.now()}`,
+              role: "assistant",
+              content: cleanAssistantText(direct),
+              timestamp: new Date(),
+            },
+          ]);
+        })
+        .catch((err) => {
+          const msg =
+            err && typeof err === "object"
+              ? JSON.stringify(err)
+              : String(err ?? "Unknown send error");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `err-${Date.now()}`,
+              role: "system",
+              content: `chat.send failed: ${msg}`,
+              timestamp: new Date(),
+            },
+          ]);
+        });
+    } else {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `err-disconnected-${Date.now()}`,
+          role: "system",
+          content: "Not connected to Gateway. Click Reconnect WebSocket first.",
+          timestamp: new Date(),
+        },
+      ]);
     }
 
     setInput("");
